@@ -12,7 +12,7 @@ Th2_min = 0;
 
 % 軌道条件
 y1 = 125;      % 開始位置
-y2 = 225;      % 終了位置
+y2 = 1755;      % 終了位置
 x1 = 0;        % x座標固定
 
 % --------------------------------------------------
@@ -179,10 +179,10 @@ for c = 1:L_sum-1
                 pos(z,3) = x_next-pos(z,1);
                 pos(z,4) = y_next-pos(z,2);
 
-            end  %ここまででx、yの位置、x、yの移動量アームと体の向きの決定をしている
+            end  %ここまででx、yの位置、x、yの移動量
 
             %--------------------------
-            % β・γ
+            % β・γ(アームの角度と進行方向の向きの決定をしている)
             %--------------------------
 
             beta = Th1 + Th2;
@@ -197,23 +197,14 @@ for c = 1:L_sum-1
             % RFT（砂地盤では、足部の姿勢や移動方向によって地盤反力が変化するため、RFT（Resistive Force Theory）を用いて砂から受ける反力を推定する。
             %--------------------------
 
-            alpha_y = ...
-                0.055*sin(-2*beta+gamma) ...
-                +0.206 ...
-                +0.358*sin(gamma) ...
-                +0.169*cos(2*beta) ...
-                +0.212*sin(2*beta+gamma);
+            alpha_y = 0.055*sin(-2*pos(z,5)+pos(z,6))+0.206+0.358*sin(pos(z,6))+0.169*cos(2*pos(z,5))+0.212*sin(2*pos(z,5)+pos(z,6))
 
-            alpha_x = ...
-                -0.124*cos(2*beta+gamma) ...
-                +0.253*cos(gamma) ...
-                +0.007*cos(-2*beta+gamma) ...
-                +0.088*sin(2*beta);
+            alpha_x = -0.124*cos(2*pos(z,5)+pos(z,6))+0.253*cos(pos(z,6))+0.007*cos(-2*pos(z,5)+pos(z,6))+0.088*sin(2*pos(z,5))
 
             Fy = 0.191 * alpha_y * tra(z,3);
             Fx = 0.191 * alpha_x * tra(z,3);
 
-            force_angle = atan2(Fy,Fx);
+            force_angle = atan2(Fy,Fx);  %反力の向き
 
             %--------------------------
             % 浮き上がり判定
@@ -241,7 +232,7 @@ for c = 1:L_sum-1
                 atan2(u2(2),u2(1));
 
             Th = force_angle ...
-                + ellipse_angle;
+                + ellipse_angle;  %力の作用線と操作力楕円体の主軸との角度
 
             r = ellipse_r(a,b,Th);
 
@@ -288,6 +279,12 @@ function[Th1,Th2]=inverse_kinematics(x,y,L1,L2)
     Th1=normalize_angle(Th1);
     Th2=normalize_angle(Th2);
 end
+
+
+%% ==========================
+% function
+%% ==========================
+
 
 function [x, y] = forward_kinematics(Th1, Th2, L1, L2)
     % forward_kinematics 2リンク平面ロボットの順運動学

@@ -12,7 +12,9 @@ function flag = judge(x, y, L1, L2)
 distance = hypot(x, y);     %sqrt(x^2 + y^2)
 reach_max = L1 + L2;
 reach_min = abs(L1 - L2);
-tolerance = 1e-9 * max([reach_max, 1]);
+
+%境界値で計算誤差のせいで本当は到達可能なのに到達不能と判定されるのを防ぐ
+tolerance = 1e-9 * max([reach_max, 1]); 
 
 if distance <= reach_max + tolerance && distance >= reach_min - tolerance
     flag = 1;
