@@ -75,7 +75,7 @@ ellipse.Th = zeros(trajectory.point_num,1);
 ellipse.r = zeros(trajectory.point_num,1);
 
 evaluation = struct();
-
+evaluation.flag_all = zeros(geometry.L_sum-1,1);
 joint = struct();
 joint.current.Th1 = 0;
 joint.current.Th2 = 0;
@@ -110,9 +110,9 @@ for c = 1:geometry.L_sum-1
     
     candidate.L1(c) = c;
     candidate.L2(c) = geometry.L_sum - c;
-    evaluation.flag = 1;
+    evaluation.flag = 1;  
 
-    %% 到達判定　　...は改行という意味
+    %% 到達判定  沈下時の軌道の判定　　...は改行という意味
 
     for g = 1:trajectory.point_num
         evaluation.flag = judge(...
@@ -122,14 +122,24 @@ for c = 1:geometry.L_sum-1
             candidate.L2(c));
 
         if evaluation.flag ~= 1
+            evaluation.flag_all(c) = evaluation.flag;
             break
+    
         end
 
     end
+%軌道上で一つでも到達不可だとそのリンクの組み合わせは除外する
 
-% 到達判定を通過した候補だけを評価する。
+    if evaluation.flag ~= 1
+        evaluation.R_all(c) = -Inf;
+        continue
+    end
+
+   
+    
+% 到達判定（足先のみ）を通過した候補だけを評価する。
     %% 到達可能なら評価値計算
-    evaluation.flag=1;
+    
     if evaluation.flag == 1
 
         evaluation.R = 0;
@@ -144,9 +154,11 @@ for c = 1:geometry.L_sum-1
                 trajectory.y(z),...
                 candidate.L1(c),...
                 candidate.L2(c));
-
+            % 逆運動学の計算結果が NaN や Inf の場合は、
+            % 到達不能または計算異常とみなし、この候補を除外する。
             if any(~isfinite([joint.current.Th1, joint.current.Th2]))
                 evaluation.flag = -3;
+                evaluation.flag_all(c) = evaluation.flag;
                 break
             end
 
@@ -154,6 +166,7 @@ for c = 1:geometry.L_sum-1
             if angle_judge(joint.current.Th1, limits.Th1_min, limits.Th1_max) ~= 1 || ...
                     angle_judge(joint.current.Th2, limits.Th2_min, limits.Th2_max) ~= 1
                 evaluation.flag = -2;
+                evaluation.flag_all(c) = evaluation.flag;
                 break
             end
 
@@ -193,14 +206,16 @@ for c = 1:geometry.L_sum-1
 
             else
 
-                % 次の点を計算
+               
 
                 
 
             %--------------------------
             % RFT（砂地盤では、足部の姿勢や移動方向によって地盤反力が変化するため、RFT（Resistive Force Theory）を用いて砂から受ける反力を推定する。
             %--------------------------
-                [joint.next.Th1,joint.next.Th2] = ...
+                
+             % x,y,変位量の計算
+            [joint.next.Th1,joint.next.Th2] = ...
                     inverse_kinematics(...
                     trajectory.x(z+1),...
                     trajectory.y(z+1),...
@@ -209,6 +224,7 @@ for c = 1:geometry.L_sum-1
 
                 if any(~isfinite([joint.next.Th1, joint.next.Th2]))
                     evaluation.flag = -3;
+                    evaluation.flag_all(c) = evaluation.flag;
                     break
                 end
 
@@ -243,7 +259,7 @@ for c = 1:geometry.L_sum-1
             force.alpha_y(z) = 0.055*sin(-2*position.beta(z)+position.gamma(z))+0.206+0.358*sin(position.gamma(z))+0.169*cos(2*position.beta(z))+0.212*sin(2*position.beta(z)+position.gamma(z));
 
             force.alpha_x(z) = -0.124*cos(2*position.beta(z)+position.gamma(z))+0.253*cos(position.gamma(z))+0.007*cos(-2*position.beta(z)+position.gamma(z))+0.088*sin(2*position.beta(z));
-
+            %実際の貫入深さなのか、初期状態からの増分
             force.Fy(z) = 0.191 * force.alpha_y(z) * trajectory.sinkage_step(z);
             force.Fx(z) = 0.191 * force.alpha_x(z) * trajectory.sinkage_step(z);
 
@@ -255,12 +271,13 @@ for c = 1:geometry.L_sum-1
             % 鉛直方向のみを判定する。
             % Fy が body_weight を超えた時点で、底面反力は 0 未満になれないため
             % 機体が浮き始めると判断する。
-            if force.Fy(z) > body_weight
+            if force.Fy(z)*position.x(z) > body_weight*soil.contact_width/2
                 % このリンク長候補は失格。残りの軌道計算は打ち切る。
                 evaluation.flag = -5;
+                evaluation.flag_all(c) = evaluation.flag;
                 break
             end
-
+            
             %--------------------------
             % 操作力楕円体
             %--------------------------
@@ -294,7 +311,7 @@ for c = 1:geometry.L_sum-1
         end
 
     end
-
+    
     evaluation.R_all(c) = evaluation.R;
 
 end
